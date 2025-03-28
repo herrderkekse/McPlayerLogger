@@ -64,6 +64,7 @@ def visualize_player_sessions(start_date: str = None, end_date: str = None, outp
         print("No log data available")
         return
 
+    print("Processing log data...", flush=True)
     # Convert date strings to datetime objects if provided
     start_datetime = None
     end_datetime = None
@@ -141,7 +142,8 @@ def visualize_player_sessions(start_date: str = None, end_date: str = None, outp
     # Adjust layout
     plt.tight_layout()
 
-    # Save the plot to the specified path
+    print("Generating visualization...", flush=True)
+    # Save the plot
     plt.savefig(output_path)
     print(f"Plot saved as '{output_path}'")
 
@@ -154,6 +156,7 @@ def check_minecraft_logs() -> Optional[str]:
         String containing log output or None if error occurs
     """
     try:
+        print("Connecting to server...", flush=True)
         # Setup SSH client
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -166,6 +169,7 @@ def check_minecraft_logs() -> Optional[str]:
             port=SSH_CONFIG["port"]
         )
 
+        print("Fetching log data...", flush=True)
         # Command to execute
         command = 'grep -E "joined the game|left the game" minecraft-server/minecraft-data/logs/*.log && zgrep -E "joined the game|left the game" minecraft-server/minecraft-data/logs/*.gz'
 
@@ -178,6 +182,7 @@ def check_minecraft_logs() -> Optional[str]:
 
         # Close connection
         ssh.close()
+        print("Data fetching complete.", flush=True)
 
         # Check for errors (note: if first part of command fails, it's ok due to &&)
         if errors and "No such file or directory" not in errors:
