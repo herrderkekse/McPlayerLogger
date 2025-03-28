@@ -7,8 +7,23 @@ import matplotlib.dates as mdates
 import numpy as np
 from collections import defaultdict
 import os
-from config import SSH_CONFIG, VIZ_CONFIG
 from statistics import mean, stdev
+
+# Make config import optional with default values
+try:
+    from config import SSH_CONFIG, VIZ_CONFIG
+except ImportError:
+    SSH_CONFIG = {
+        "hostname": "localhost",
+        "username": "user",
+        "key_path": "",
+        "port": 22
+    }
+    VIZ_CONFIG = {
+        "start_date": None,
+        "end_date": None,
+        "output_path": "output/minecraft_sessions.png"
+    }
 
 
 def parse_log_line(line: str) -> tuple[datetime, str, str]:

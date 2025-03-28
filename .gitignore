@@ -181,3 +181,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Test cache
+.pytest_cache/
+tests/__pycache__/
+
+
+
