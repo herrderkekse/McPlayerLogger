@@ -2,6 +2,10 @@
 # Configuration files
 config.py
 
+# output files
+output/
+*png
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

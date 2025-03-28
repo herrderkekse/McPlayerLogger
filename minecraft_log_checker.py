@@ -1,12 +1,13 @@
 import paramiko
 from typing import Optional
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 from collections import defaultdict
-from config import SSH_CONFIG
+import os
+from config import SSH_CONFIG, VIZ_CONFIG
 
 
 def parse_log_line(line: str) -> tuple[datetime, str, str]:
@@ -38,12 +39,39 @@ def parse_log_line(line: str) -> tuple[datetime, str, str]:
     return timestamp, player, action
 
 
-def visualize_player_sessions():
-    """Fetch logs and create a visual timeline of player sessions"""
+def visualize_player_sessions(start_date: str = None, end_date: str = None, output_path: str = None):
+    """
+    Fetch logs and create a visual timeline of player sessions within a date range
+
+    Args:
+        start_date: Optional start date in 'YYYY-MM-DD' format (overrides config)
+        end_date: Optional end date in 'YYYY-MM-DD' format (overrides config)
+        output_path: Optional full path for output file (overrides config)
+    """
+    # Use provided parameters or fall back to config values
+    start_date = start_date or VIZ_CONFIG.get('start_date')
+    end_date = end_date or VIZ_CONFIG.get('end_date')
+    output_path = output_path or VIZ_CONFIG.get(
+        'output_path', 'output/minecraft_sessions.png')
+
+    # Ensure output directory exists
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
     log_data = check_minecraft_logs()
     if not log_data:
         print("No log data available")
         return
+
+    # Convert date strings to datetime objects if provided
+    start_datetime = None
+    end_datetime = None
+    if start_date:
+        start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+    if end_date:
+        end_datetime = datetime.strptime(
+            end_date, '%Y-%m-%d') + timedelta(days=1)  # Include the entire end date
 
     # Process log lines
     player_sessions = defaultdict(list)
@@ -51,13 +79,20 @@ def visualize_player_sessions():
     for line in log_data.strip().split('\n'):
         try:
             timestamp, player, action = parse_log_line(line)
+
+            # Skip if outside the specified date range
+            if start_datetime and timestamp < start_datetime:
+                continue
+            if end_datetime and timestamp > end_datetime:
+                continue
+
             player_sessions[player].append((timestamp, action))
         except ValueError as e:
             print(f"Error processing line: {e}")
             continue
 
     if not player_sessions:
-        print("No valid sessions found")
+        print("No valid sessions found in the specified date range")
         return
 
     # Create visualization
@@ -90,7 +125,11 @@ def visualize_player_sessions():
     plt.yticks(range(len(player_sessions)), list(player_sessions.keys()))
     plt.xlabel('Time')
     plt.ylabel('Players')
-    plt.title('Minecraft Server Player Sessions')
+    title = 'Minecraft Server Player Sessions'
+    if start_date or end_date:
+        date_range = f" ({start_date or 'start'} to {end_date or 'end'})"
+        title += date_range
+    plt.title(title)
 
     # Format x-axis
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M'))
@@ -102,9 +141,9 @@ def visualize_player_sessions():
     # Adjust layout
     plt.tight_layout()
 
-    # Save the plot instead of showing it
-    plt.savefig('minecraft_sessions.png')
-    print("Plot saved as 'minecraft_sessions.png'")
+    # Save the plot to the specified path
+    plt.savefig(output_path)
+    print(f"Plot saved as '{output_path}'")
 
 
 def check_minecraft_logs() -> Optional[str]:
@@ -154,4 +193,13 @@ def check_minecraft_logs() -> Optional[str]:
 
 # Example usage
 if __name__ == "__main__":
+    # Example usage:
+    # Use config defaults:
     visualize_player_sessions()
+
+    # Override config values:
+    # visualize_player_sessions(
+    #     start_date="2025-03-23",
+    #     end_date="2025-03-25",
+    #     output_path="custom_output/player_activity.png"
+    # )
