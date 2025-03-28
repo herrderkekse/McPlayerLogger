@@ -1,5 +1,5 @@
 import paramiko
-from typing import Optional
+from typing import Optional, Dict, List, Tuple
 import re
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
@@ -8,6 +8,7 @@ import numpy as np
 from collections import defaultdict
 import os
 from config import SSH_CONFIG, VIZ_CONFIG
+from statistics import mean, stdev
 
 
 def parse_log_line(line: str) -> tuple[datetime, str, str]:
@@ -37,6 +38,96 @@ def parse_log_line(line: str) -> tuple[datetime, str, str]:
     timestamp = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
 
     return timestamp, player, action
+
+
+def calculate_player_statistics(player_sessions: Dict[str, List[Tuple[datetime, str]]]) -> Dict[str, Dict]:
+    """
+    Calculate statistics for each player's sessions
+
+    Args:
+        player_sessions: Dictionary of player sessions with timestamps and actions
+
+    Returns:
+        Dictionary containing statistics for each player
+    """
+    stats = {}
+
+    for player, sessions in player_sessions.items():
+        # Sort sessions by timestamp
+        sessions.sort(key=lambda x: x[0])
+
+        # Calculate session durations
+        durations = []
+        join_time = None
+        total_time = timedelta()
+        session_count = 0
+
+        for timestamp, action in sessions:
+            if action == 'joined':
+                join_time = timestamp
+            elif action == 'left' and join_time is not None:
+                duration = timestamp - join_time
+                durations.append(duration)
+                total_time += duration
+                session_count += 1
+                join_time = None
+
+        # Handle case where player hasn't logged out
+        if join_time is not None:
+            duration = sessions[-1][0] - join_time
+            durations.append(duration)
+            total_time += duration
+            session_count += 1
+
+        # Calculate statistics
+        stats[player] = {
+            'total_sessions': session_count,
+            'total_time': total_time,
+            'average_session': total_time / session_count if session_count > 0 else timedelta(0),
+            'min_session': min(durations) if durations else timedelta(0),
+            'max_session': max(durations) if durations else timedelta(0),
+        }
+
+        # Calculate standard deviation if we have more than one session
+        if len(durations) > 1:
+            duration_seconds = [d.total_seconds() for d in durations]
+            stats[player]['session_stddev'] = timedelta(
+                seconds=stdev(duration_seconds))
+        else:
+            stats[player]['session_stddev'] = timedelta(0)
+
+    return stats
+
+
+def format_timedelta(td: timedelta) -> str:
+    """Format timedelta in a human-readable format"""
+    total_seconds = int(td.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def print_player_statistics(stats: Dict[str, Dict]):
+    """Print player statistics in a formatted table"""
+    print("\nPlayer Statistics:")
+    print("-" * 100)
+    print(f"{'Player':<20} {'Sessions':<10} {'Total Time':<15} {'Avg Session':<15} "
+          f"{'Min Session':<15} {'Max Session':<15} {'Std Dev':<15}")
+    print("-" * 100)
+
+    for player, player_stats in sorted(stats.items()):
+        print(
+            f"{player:<20} "
+            f"{player_stats['total_sessions']:<10} "
+            f"{format_timedelta(player_stats['total_time']):<15} "
+            f"{format_timedelta(player_stats['average_session']):<15} "
+            f"{format_timedelta(player_stats['min_session']):<15} "
+            f"{format_timedelta(player_stats['max_session']):<15} "
+            f"{format_timedelta(player_stats['session_stddev']):<15}"
+        )
+    print("-" * 100)
 
 
 def visualize_player_sessions(start_date: str = None, end_date: str = None, output_path: str = None):
@@ -96,7 +187,13 @@ def visualize_player_sessions(start_date: str = None, end_date: str = None, outp
         print("No valid sessions found in the specified date range")
         return
 
+    # Calculate and display statistics
+    print("\nCalculating player statistics...", flush=True)
+    stats = calculate_player_statistics(player_sessions)
+    print_player_statistics(stats)
+
     # Create visualization
+    print("\nGenerating visualization...", flush=True)
     plt.figure(figsize=(15, 8))
 
     # Plot each player's sessions
